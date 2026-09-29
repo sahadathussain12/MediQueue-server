@@ -17,30 +17,27 @@ app.use(express.json());
 
 const client = new MongoClient(process.env.MONGODB_URI);
 
+const JWKS = createRemoteJWKSet(new URL("http://localhost:3000/api/auth/jwks"));
 
- const JWKS = createRemoteJWKSet(
-      new URL('http://localhost:3000/api/auth/jwks')
-    )
+const varifiToken = async (req, res, next) => {
+  const authHeader = req?.headers?.authorization;
 
-const varifiToken =async (req, res , next)=> {
-const  authHeader = req?.headers?.authorization;
-
-if (!authHeader) {
+  if (!authHeader) {
     return res.status(401).json({
       message: "unauthorize",
     });
   }
 
-const token = authHeader.split(" ")[1]
-if (!token) {
+  const token = authHeader.split(" ")[1];
+  if (!token) {
     return res.status(401).json({
       message: "unauthorize",
     });
   }
 
- 
   try {
     const { payload } = await jwtVerify(token, JWKS);
+    req.user=payload
 
     console.log(payload, "payload");
 
@@ -50,9 +47,7 @@ if (!token) {
       message: "forbiten",
     });
   }
-
-
-}
+};
 
 async function connectToMongoDB() {
   try {
@@ -71,10 +66,18 @@ async function connectToMongoDB() {
 
       res.send(result);
     });
+    app.get("/my-tutors", varifiToken, async (req, res) => {
+      const  userId  = req.user.id;
+      console.log(userId);
+
+      const result = await tutorCollection.find({ userId }).toArray();
+
+      res.send(result);
+    });
 
     app.get("/tutors", async (req, res) => {
-      const availableTutor = await tutorCollection.find().limit(6).toArray();
-      res.send(availableTutor);
+      const result = await tutorCollection.find().limit(6).toArray();
+      res.send(result);
     });
 
     app.get("/alltutors", async (req, res) => {
@@ -82,18 +85,17 @@ async function connectToMongoDB() {
       res.send(availableTutor);
     });
 
-    app.get( "/alltutors/:id", varifiToken,async (req, res) => {
-        const id = req.params.id;
+    app.get("/alltutors/:id", varifiToken, async (req, res) => {
+      const id = req.params.id;
 
-        const query = {
-          _id: new ObjectId(id),
-        };
+      const query = {
+        _id: new ObjectId(id),
+      };
 
-        const tutor = await tutorCollection.findOne(query);
+      const tutor = await tutorCollection.findOne(query);
 
-        res.send(tutor);
-      },
-    );
+      res.send(tutor);
+    });
     app.get("/", (req, res) => {
       res.send("MediQueue server is running!");
     });
