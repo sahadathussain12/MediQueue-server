@@ -75,6 +75,31 @@ async function connectToMongoDB() {
       res.send(result);
     });
 
+    app.delete("/delete-tutors/:id", varifiToken, async(req,res)=>{
+      const {id} = req.params;
+      const userId = req.user.id;
+      const result = await tutorCollection.deleteOne({_id:new ObjectId(id),userId:userId})
+
+      res.send(result)
+    } )
+  app.patch("/update-tutors/:id", varifiToken, async (req, res) => {
+  const { id } = req.params;
+  const userId = req.user.id;
+  const updateData = req.body;
+
+  const result = await tutorCollection.updateOne(
+    {
+      _id: new ObjectId(id),
+      userId: userId,
+    },
+    {
+      $set: updateData,
+    }
+  );
+
+  res.send(result);
+});
+
     app.get("/tutors", async (req, res) => {
       const result = await tutorCollection.find().limit(6).toArray();
       res.send(result);
