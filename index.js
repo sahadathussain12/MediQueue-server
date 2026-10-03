@@ -59,6 +59,16 @@ async function connectToMongoDB() {
 
     const tutorCollection = db.collection("tutorData");
 
+    app.get("/my-bookings", varifiToken, async (req, res) => {
+      const email = req.user.email;
+
+      const bookings = await bookingCollection
+        .find({ studentEmail: email })
+        .toArray();
+
+      res.send(bookings);
+    });
+
     app.post("/bookings", varifiToken, async (req, res) => {
       try {
         const bookingData = req.body;
@@ -74,7 +84,6 @@ async function connectToMongoDB() {
           });
         }
 
-        // Slot check
         if (tutor.totalSlot <= 0) {
           return res.status(400).send({
             success: false,
@@ -82,15 +91,15 @@ async function connectToMongoDB() {
           });
         }
 
-        // Session date check
-        if (new Date() < new Date(tutor.sessionStartDate)) {
+        const today = new Date().toISOString().split("T")[0];
+
+        if (today > tutor.sessionStartDate) {
           return res.status(400).send({
             success: false,
-            message: "Booking is not available yet for this tutor",
+            message: "Booking is not available for this tutor",
           });
         }
 
-        // System generated
         bookingData.bookStatus = "Confirmed";
 
         // Create booking
@@ -114,16 +123,30 @@ async function connectToMongoDB() {
           bookingId: result.insertedId,
         });
       } catch (error) {
-        console.error(error);
-
         res.status(500).send({
           success: false,
-          message: "Server error",
+          message: error.message,
         });
       }
     });
+
+    app.patch("/cancel-booking/:id", varifiToken, async (req, res) => {
+      const { id } = req.params;
+      const userid = req.user.email;
+
+      const booking = await bookingCollection.updateOne(
+        { _id: new ObjectId(id), studentEmail: userid },
+        {
+          $set: { bookStatus: "Cancelled" },
+        },
+      );
+      res.send(booking);
+    });
+
     app.post("/tutors", varifiToken, async (req, res) => {
       const tutorData = req.body;
+      tutorData.totalSlot = Number(tutorData.totalSlot);
+      tutorData.hourlyFee = Number(tutorData.hourlyFee);
 
       const result = await tutorCollection.insertOne(tutorData);
 
