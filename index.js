@@ -195,10 +195,30 @@ async function connectToMongoDB() {
     });
 
     app.get("/alltutors", async (req, res) => {
-      const availableTutor = await tutorCollection.find().toArray();
-      res.send(availableTutor);
-    });
+      const { search, startDate, endDate } = req.query;
 
+      const query = {};
+
+      if (search) {
+        query.tutorName = { $regex: search, $options: "i" };
+      }
+
+      if (startDate || endDate) {
+        query.sessionStartDate = {};
+
+        if (startDate) {
+          query.sessionStartDate.$gte = startDate;
+        }
+
+        if (endDate) {
+          query.sessionStartDate.$lte = `${endDate}T23:59:59.999Z`;
+        }
+      }
+
+      const result = await tutorCollection.find(query).toArray();
+
+      res.send(result);
+    });
     app.get("/alltutors/:id", varifiToken, async (req, res) => {
       const id = req.params.id;
 
