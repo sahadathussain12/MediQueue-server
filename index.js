@@ -37,7 +37,7 @@ const varifiToken = async (req, res, next) => {
 
   try {
     const { payload } = await jwtVerify(token, JWKS);
-    req.user=payload
+    req.user = payload;
 
     console.log(payload, "payload");
 
@@ -59,7 +59,70 @@ async function connectToMongoDB() {
 
     const tutorCollection = db.collection("tutorData");
 
-    app.post("/tutors", async (req, res) => {
+    app.post("/bookings", varifiToken, async (req, res) => {
+      try {
+        const bookingData = req.body;
+
+        const tutor = await tutorCollection.findOne({
+          _id: new ObjectId(bookingData.tutorId),
+        });
+
+        if (!tutor) {
+          return res.status(404).send({
+            success: false,
+            message: "Tutor not found",
+          });
+        }
+
+        // Slot check
+        if (tutor.totalSlot <= 0) {
+          return res.status(400).send({
+            success: false,
+            message: "No available slots left.",
+          });
+        }
+
+        // Session date check
+        if (new Date() < new Date(tutor.sessionStartDate)) {
+          return res.status(400).send({
+            success: false,
+            message: "Booking is not available yet for this tutor",
+          });
+        }
+
+        // System generated
+        bookingData.bookStatus = "Confirmed";
+
+        // Create booking
+        const result = await bookingCollection.insertOne(bookingData);
+
+        // Decrease slot
+        await tutorCollection.updateOne(
+          {
+            _id: new ObjectId(bookingData.tutorId),
+          },
+          {
+            $inc: {
+              totalSlot: -1,
+            },
+          },
+        );
+
+        res.send({
+          success: true,
+          message: "Booking confirmed",
+          bookingId: result.insertedId,
+        });
+      } catch (error) {
+        console.error(error);
+
+        res.status(500).send({
+          success: false,
+          message: "Server error",
+        });
+      }
+    });
+    app.post("/tutors", varifiToken, async (req, res) => {
       const tutorData = req.body;
 
       const result = await tutorCollection.insertOne(tutorData);
@@ -67,7 +130,7 @@ async function connectToMongoDB() {
       res.send(result);
     });
     app.get("/my-tutors", varifiToken, async (req, res) => {
-      const  userId  = req.user.id;
+      const userId = req.user.id;
       console.log(userId);
 
       const result = await tutorCollection.find({ userId }).toArray();
@@ -75,30 +138,33 @@ async function connectToMongoDB() {
       res.send(result);
     });
 
-    app.delete("/delete-tutors/:id", varifiToken, async(req,res)=>{
-      const {id} = req.params;
+    app.delete("/delete-tutors/:id", varifiToken, async (req, res) => {
+      const { id } = req.params;
       const userId = req.user.id;
-      const result = await tutorCollection.deleteOne({_id:new ObjectId(id),userId:userId})
+      const result = await tutorCollection.deleteOne({
+        _id: new ObjectId(id),
+        userId: userId,
+      });
 
-      res.send(result)
-    } )
-  app.patch("/update-tutors/:id", varifiToken, async (req, res) => {
-  const { id } = req.params;
-  const userId = req.user.id;
-  const updateData = req.body;
+      res.send(result);
+    });
+    app.patch("/update-tutors/:id", varifiToken, async (req, res) => {
+      const { id } = req.params;
+      const userId = req.user.id;
+      const updateData = req.body;
 
-  const result = await tutorCollection.updateOne(
-    {
-      _id: new ObjectId(id),
-      userId: userId,
-    },
-    {
-      $set: updateData,
-    }
-  );
+      const result = await tutorCollection.updateOne(
+        {
+          _id: new ObjectId(id),
+          userId: userId,
+        },
+        {
+          $set: updateData,
+        },
+      );
 
-  res.send(result);
-});
+      res.send(result);
+    });
 
     app.get("/tutors", async (req, res) => {
       const result = await tutorCollection.find().limit(6).toArray();
