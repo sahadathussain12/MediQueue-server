@@ -230,6 +230,15 @@ async function connectToMongoDB() {
 
       res.send(tutor);
     });
+
+    app.get("/tutor-metadata/:id", async (req, res) => {
+      const tutor = await tutorCollection.findOne(
+        { _id: new ObjectId(req.params.id) },
+        { projection: { tutorName: 1 } },
+      );
+
+      res.send(tutor);
+    });
     app.get("/", (req, res) => {
       res.send("MediQueue server is running!");
     });
